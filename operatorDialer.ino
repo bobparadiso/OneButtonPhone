@@ -1,10 +1,13 @@
 //-code to answer/hang up phone and optionally dial operator via a single switch
-//-running on Arduino Nano wired to Comdial 2500 phone via relays
+//-running on Arduino Nano (w/ Optiboot) wired to Comdial 2500 phone via relays
 //-any model phone could be used in concept, as long as relay(s) are in place for hook and a relay for '0' key, then SetLineOpen function is modified appropriately
 
 //for Comdial 2500 hook wiring:
 //for hook down: yellow->gray, black->red
 //for hook up: yellow->brown, green->white
+
+#include <avr/wdt.h>
+#include <TimerOne.h>
 
 #define HOOK0_PIN 2
 #define HOOK1_PIN 3
@@ -13,32 +16,38 @@
 #define SWITCH_PIN 6 //PD6 PCINT22
 #define LED_PIN 12 //off-hook indicator LED
 
-//state for button debounce
-volatile uint32_t lastButtonTime = 0;
+#define BTN_POLL_INTERVAL 10 //ms
+#define DEBOUNCE_TIME 100 //ms
+#define DEBOUNCE_ITERATIONS (DEBOUNCE_TIME / BTN_POLL_INTERVAL)
+
+//
+volatile uint16_t buttonDebounceCount = 0;
 volatile uint8_t lastButtonState = 0;
-ISR(PCINT2_vect)
+volatile uint8_t debouncedButtonState = 0;
+void updateBtnState()
 {
-	lastButtonTime = millis();
-	lastButtonState = digitalRead(SWITCH_PIN) == LOW;
-}
-
-//state is validated/updated at request time
-#define DEBOUNCE_THRESHOLD 25
-uint8_t getDebouncedButtonState()
-{
-	static uint8_t debouncedButtonState = 0;
-	
-	if (millis() - lastButtonTime > DEBOUNCE_THRESHOLD)
-		debouncedButtonState = lastButtonState;
-
-	return debouncedButtonState;
+	uint8_t buttonState = digitalRead(SWITCH_PIN) == LOW;
+	//increment count if state is maintained
+	if (buttonState == lastButtonState)
+	{
+		buttonDebounceCount++;
+		if (buttonDebounceCount == DEBOUNCE_ITERATIONS)
+			debouncedButtonState = lastButtonState;
+	}
+	//store last button state and reset count
+	else
+	{
+		buttonDebounceCount = 0;
+		lastButtonState = buttonState;
+	}
 }
 
 //
 void delayWhileSwitchNotPressed(uint32_t duration)
 {
 	uint32_t start = millis();
-	while ((millis() - start) < duration && !getDebouncedButtonState());
+	while ((millis() - start) < duration && !debouncedButtonState)
+		wdt_reset();
 }
 
 //
@@ -71,7 +80,13 @@ void SetLineOpen(uint8_t val)
 #define OPERATOR_THRESHOLD 1000
 void setup()
 {
+	wdt_disable();
+	wdt_enable(WDTO_4S);
+
 	Serial.begin(115200);
+
+	Timer1.initialize(BTN_POLL_INTERVAL * 1000);
+	Timer1.attachInterrupt(updateBtnState); 
 		
 	digitalWrite(LED_PIN, LOW);
 	digitalWrite(HOOK0_PIN, HIGH);
@@ -86,15 +101,14 @@ void setup()
 	pinMode(DIAL_0_PIN, OUTPUT);
 	pinMode(SWITCH_PIN, INPUT_PULLUP);
 	
-	PCICR = _BV(PCIE2); //enable pin change interrupts
-	PCMSK2 = 0b01000000;
-
 	Serial.println("ready");
 
 	//main loop
 	while (1)
 	{
-		if (getDebouncedButtonState())
+		wdt_reset();
+
+		if (debouncedButtonState)
 		{
 			if (!lineOpen)
 			{
@@ -102,7 +116,8 @@ void setup()
 
 				uint32_t start = millis();
 				Serial.println("waiting for switch release");
-				while (getDebouncedButtonState()); //wait while switch is still activated
+				while (debouncedButtonState)
+					wdt_reset(); //wait while switch is still activated
 				Serial.println("ready");
 				uint32_t elapsed = millis() - start;
 				
@@ -124,7 +139,7 @@ void setup()
 					delayWhileSwitchNotPressed(500);
 					digitalWrite(DIAL_0_PIN, HIGH);
 					
-					if (getDebouncedButtonState())
+					if (debouncedButtonState)
 						SetLineOpen(0);
 				}
 			}
@@ -134,7 +149,8 @@ void setup()
 			}
 
 			Serial.println("waiting for switch release");
-			while (getDebouncedButtonState()); //wait while switch is still activated
+			while (debouncedButtonState)
+				wdt_reset(); //wait while switch is still activated
 			Serial.println("ready");
 		}
 	}
