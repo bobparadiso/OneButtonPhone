@@ -2,9 +2,30 @@
 //-running on Arduino Nano (w/ Optiboot) wired to Comdial 2500 phone via SSRs
 //-any model phone could be used in concept, as long as relay(s) are in place for hook and a relay for '0' key, then SetLineOpen function is modified appropriately
 
-//for Comdial 2500 hook wiring:
-//for hook down: yellow(L2)->gray(L2), black(GN)->red(R)
-//for hook up: yellow(L2)->brown(J2), green(L1)->white(J1)
+//more info: https://bobparadiso.com/2016/03/26/one-button-operator-dialer/
+
+
+/*
+Comdial 2500 Hook Switch Wiring
+Going from lever end to wire end the reeds (grouped as switches) are as follows:
+*Black(GN), Red(R)
+*White(J1), Green(L1)
+*Brown(J2), Yellow(L2), Gray(L2)
+
+The order of events for hook up is:
+*break Yellow – Gray
+*make White – Green
+*make Yellow – Brown
+*break Black – Red
+
+The order of events for hook down is the opposite and reverse:
+*make Black – Red
+*break Yellow – Brown
+*break White – Green
+*make Yellow – Gray
+
+As it happens, yellow and gray are connected on the PCB, so this steps involving that pair can be ignored.
+*/
 
 #include <avr/wdt.h>
 #include <TimerOne.h>
@@ -54,22 +75,26 @@ void delayWhileSwitchNotPressed(uint32_t duration)
 uint8_t lineOpen = 0;
 void SetLineOpen(uint8_t val)
 {
-	//open line
+	//open line (hook up)
 	if (val)
 	{
-		digitalWrite(HOOK_DOWN_1_PIN, LOW);
 		digitalWrite(HOOK_UP_1_PIN, HIGH);
+		delay(10);
 		digitalWrite(HOOK_UP_2_PIN, HIGH);
+		delay(10);
+		digitalWrite(HOOK_DOWN_1_PIN, LOW);
 		digitalWrite(LED_PIN, HIGH);
 		Serial.println("line open");
 		lineOpen = 1;
 	}
-	//hang up
+	//hang up (hook down)
 	else
 	{
 		digitalWrite(HOOK_DOWN_1_PIN, HIGH);
-		digitalWrite(HOOK_UP_1_PIN, LOW);
+		delay(10);
 		digitalWrite(HOOK_UP_2_PIN, LOW);
+		delay(10);
+		digitalWrite(HOOK_UP_1_PIN, LOW);
 		digitalWrite(LED_PIN, LOW);
 		Serial.println("line closed");
 		lineOpen = 0;
