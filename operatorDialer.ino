@@ -23,16 +23,15 @@ The order of events for hook down is the opposite and reverse:
 *break Yellow – Brown
 *break White – Green
 *make Yellow – Gray
-
-As it happens, yellow and gray are connected on the PCB, so this steps involving that pair can be ignored.
 */
 
 #include <avr/wdt.h>
 #include <TimerOne.h>
 
-#define HOOK_DOWN_1_PIN 2
-#define HOOK_UP_1_PIN 3
-#define HOOK_UP_2_PIN 5
+#define HOOK_BLACK_RED_PIN 6
+#define HOOK_WHITE_GREEN_PIN 5
+#define HOOK_YELLOW_GRAY_PIN 3
+#define HOOK_YELLOW_BROWN_PIN 2
 #define DIAL_0_PIN 4
 #define SWITCH_PIN A1
 #define LED_PIN A0 //off-hook indicator LED
@@ -72,17 +71,20 @@ void delayWhileSwitchNotPressed(uint32_t duration)
 }
 
 //
+#define HOOK_STEP_DELAY 10
 uint8_t lineOpen = 0;
 void SetLineOpen(uint8_t val)
 {
 	//open line (hook up)
 	if (val)
 	{
-		digitalWrite(HOOK_UP_1_PIN, HIGH);
-		delay(10);
-		digitalWrite(HOOK_UP_2_PIN, HIGH);
-		delay(10);
-		digitalWrite(HOOK_DOWN_1_PIN, LOW);
+		digitalWrite(HOOK_YELLOW_GRAY_PIN, LOW);
+		delay(HOOK_STEP_DELAY);
+		digitalWrite(HOOK_WHITE_GREEN_PIN, HIGH);
+		delay(HOOK_STEP_DELAY);
+		digitalWrite(HOOK_YELLOW_BROWN_PIN, HIGH);
+		delay(HOOK_STEP_DELAY);
+		digitalWrite(HOOK_BLACK_RED_PIN, LOW);
 		digitalWrite(LED_PIN, HIGH);
 		Serial.println("line open");
 		lineOpen = 1;
@@ -90,11 +92,13 @@ void SetLineOpen(uint8_t val)
 	//hang up (hook down)
 	else
 	{
-		digitalWrite(HOOK_DOWN_1_PIN, HIGH);
-		delay(10);
-		digitalWrite(HOOK_UP_2_PIN, LOW);
-		delay(10);
-		digitalWrite(HOOK_UP_1_PIN, LOW);
+		digitalWrite(HOOK_BLACK_RED_PIN, HIGH);
+		delay(HOOK_STEP_DELAY);
+		digitalWrite(HOOK_YELLOW_BROWN_PIN, LOW);
+		delay(HOOK_STEP_DELAY);
+		digitalWrite(HOOK_WHITE_GREEN_PIN, LOW);
+		delay(HOOK_STEP_DELAY);
+		digitalWrite(HOOK_YELLOW_GRAY_PIN, HIGH);
 		digitalWrite(LED_PIN, LOW);
 		Serial.println("line closed");
 		lineOpen = 0;
@@ -124,9 +128,10 @@ void setup()
 	SetLineOpen(0);
  	
 	pinMode(LED_PIN, OUTPUT);
-	pinMode(HOOK_DOWN_1_PIN, OUTPUT);
-	pinMode(HOOK_UP_1_PIN, OUTPUT);
-	pinMode(HOOK_UP_2_PIN, OUTPUT);
+	pinMode(HOOK_BLACK_RED_PIN, OUTPUT);
+	pinMode(HOOK_WHITE_GREEN_PIN, OUTPUT);
+	pinMode(HOOK_YELLOW_BROWN_PIN, OUTPUT);
+	pinMode(HOOK_YELLOW_GRAY_PIN, OUTPUT);
 	pinMode(DIAL_0_PIN, OUTPUT);
 	pinMode(SWITCH_PIN, INPUT_PULLUP);
 	
